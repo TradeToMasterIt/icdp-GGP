@@ -1,0 +1,44 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to check if user is signed in
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Helper function to check if user is the owner of the data
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Helper function to check if the user is an ADMIN
+    // (This looks up the user's profile in the 'users' collection to check their role)
+    function isAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+
+    // RULES FOR USERS COLLECTION
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && (request.auth.uid == userId || isAdmin());
+    }
+
+    // RULES FOR DATA COLLECTIONS (Breeding, Treatments, etc.)
+    
+    // Explicit Rule for Calving Report
+    match /calving/{document=**} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /{collectionName}/{document=**} {
+      // Allow ANY authenticated user to READ data (Global History)
+      allow read: if isSignedIn();
+      
+      // Allow creating new documents
+      allow create: if isSignedIn();
+
+      // Relaxed update rule for debugging (was strictly owner/admin)
+      allow update, delete: if isSignedIn();
+    }
+  }
+}
